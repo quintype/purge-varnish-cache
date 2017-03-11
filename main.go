@@ -57,7 +57,10 @@ func recieveMessages(svc *sqs.SQS, queueUrl *string, timeout int64) ([]*sqs.Mess
 		exitErrorf("Unable to receive message from queue %q, %v.", queueUrl, err)
 	}
 
-	fmt.Printf("Received %d messages.\n", len(result.Messages))
+	if len(result.Messages) > 0 {
+		fmt.Printf("Received %d messages.\n", len(result.Messages))
+	}
+
 	return result.Messages;
 }
 
@@ -124,7 +127,7 @@ func main() {
 	flag.StringVar(&name, "n", "", "Queue name")
 	flag.StringVar(&server, "s", "http://localhost:6081", "Server Connection String")
 	flag.StringVar(&region, "r", "us-east-1", "AWS region")
-	flag.Int64Var(&timeout, "t", 180, "(Optional) Timeout in seconds for long polling")
+	flag.Int64Var(&timeout, "t", 20, "(Optional) Timeout in seconds for long polling")
 	flag.Parse()
 
 	if len(name) == 0 {
