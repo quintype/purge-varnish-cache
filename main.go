@@ -4,8 +4,10 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"strings"
 
 	"net/http"
+	"encoding/json"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/awserr"
@@ -62,24 +64,37 @@ func recieveMessages(svc *sqs.SQS, queueUrl *string, timeout int64) ([]*sqs.Mess
 func processMessages(server string, messages [] *sqs.Message) {
 	client := http.Client{}
 
+	type Message struct {
+		Message, Subject string
+	}
+
 	for i := range messages {
-		key := messages[i].Body
+		body := *messages[i].Body
+		dec := json.NewDecoder(strings.NewReader(body))
+
+		var m Message
+		if dec.Decode(&m) != nil {
+			fmt.Println("Unable to parse json", body);
+			return;
+		}
+		key := m.Message
+
 		request, err := http.NewRequest("BAN", server, nil)
 		if err != nil {
-			fmt.Println("Unable to create purge request", *key, err);
+			fmt.Println("Unable to create purge request", key, err);
 			return;
 		}
 
-		request.Header.Add("Surrogate-Key", *key)
+		request.Header.Add("Surrogate-Key", key)
 
 		_, err = client.Do(request)
 
 		if err != nil {
-			fmt.Println("Unable to purge", *key, err);
+			fmt.Println("Unable to purge", key, err);
 			return;
 		}
 
-		fmt.Printf("Purged %s\n", *key)
+		fmt.Printf("Purged %s\n", key)
 	}
 }
 
