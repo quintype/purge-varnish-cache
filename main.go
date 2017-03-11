@@ -124,7 +124,7 @@ func main() {
 	flag.StringVar(&name, "n", "", "Queue name")
 	flag.StringVar(&server, "s", "http://localhost:6081", "Server Connection String")
 	flag.StringVar(&region, "r", "us-east-1", "AWS region")
-	flag.Int64Var(&timeout, "t", 20, "(Optional) Timeout in seconds for long polling")
+	flag.Int64Var(&timeout, "t", 180, "(Optional) Timeout in seconds for long polling")
 	flag.Parse()
 
 	if len(name) == 0 {
