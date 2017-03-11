@@ -1,3 +1,2 @@
-/src
-/pkg
 /purge-varnish-cache
+/gopath
