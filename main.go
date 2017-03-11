@@ -66,7 +66,8 @@ func processMessages(server string, messages [] *sqs.Message) {
 		key := messages[i].Body
 		request, err := http.NewRequest("BAN", server, nil)
 		if err != nil {
-			fmt.Println("Unable to create purge request", key, err);
+			fmt.Println("Unable to create purge request", *key, err);
+			return;
 		}
 
 		request.Header.Add("Surrogate-Key", *key)
@@ -74,7 +75,8 @@ func processMessages(server string, messages [] *sqs.Message) {
 		_, err = client.Do(request)
 
 		if err != nil {
-			fmt.Println("Unable to purge", key, err);
+			fmt.Println("Unable to purge", *key, err);
+			return;
 		}
 
 		fmt.Printf("Purged %s\n", *key)
@@ -102,11 +104,11 @@ func deleteMessages(svc *sqs.SQS, queueUrl *string, messages [] *sqs.Message) {
 }
 
 func main() {
-	var name string
+	var name, server, region string
 	var timeout int64
-	var server string
 	flag.StringVar(&name, "n", "", "Queue name")
 	flag.StringVar(&server, "s", "http://localhost:8080", "Server Connection String")
+	flag.StringVar(&region, "r", "us-east-1", "AWS region")
 	flag.Int64Var(&timeout, "t", 20, "(Optional) Timeout in seconds for long polling")
 	flag.Parse()
 
@@ -116,6 +118,7 @@ func main() {
 	}
 
 	sess := session.Must(session.NewSessionWithOptions(session.Options{
+		Config: aws.Config{Region: aws.String(region)},
 		SharedConfigState: session.SharedConfigEnable,
 	}))
 
