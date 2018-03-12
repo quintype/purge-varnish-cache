@@ -89,9 +89,9 @@ func processMessages(server string, messages [] *sqs.Message) {
 		}
 
 		request.Header.Add("Surrogate-Key", key)
-    request.Header.set("Connection","close")
+    request.Header.Set("Connection","close")
 
-		resp, err = client.Do(request)
+		resp, err := client.Do(request);
 
 		if err != nil {
 			fmt.Println("Unable to purge", key, err);
@@ -99,7 +99,7 @@ func processMessages(server string, messages [] *sqs.Message) {
 		}
 
 		fmt.Printf("Purged %s\n", key)
-		defer resp.body.Close()
+		defer resp.Body.Close()
 	}
 }
 
