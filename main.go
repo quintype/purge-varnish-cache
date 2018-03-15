@@ -15,6 +15,8 @@ import (
 	"github.com/aws/aws-sdk-go/service/sqs"
 )
 
+const AppVersion = "1.1.0"
+
 func getOrCreateQueue(svc *sqs.SQS, name string) (*string) {
 	resultURL, err := svc.GetQueueUrl(&sqs.GetQueueUrlInput{
 		QueueName: aws.String(name),
@@ -126,11 +128,18 @@ func deleteMessages(svc *sqs.SQS, queueUrl *string, messages [] *sqs.Message) {
 func main() {
 	var name, server, region string
 	var timeout int64
+	var version bool
 	flag.StringVar(&name, "n", "", "Queue name")
 	flag.StringVar(&server, "s", "http://localhost:6081", "Server Connection String")
 	flag.StringVar(&region, "r", "us-east-1", "AWS region")
 	flag.Int64Var(&timeout, "t", 20, "(Optional) Timeout in seconds for long polling")
+	flag.BoolVar(&version, "v", false, "Prints the current version of the app")
 	flag.Parse()
+
+	if version {
+		fmt.Println(AppVersion);
+		os.Exit(1);
+	}
 
 	if len(name) == 0 {
 		flag.PrintDefaults()
