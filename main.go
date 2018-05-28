@@ -13,6 +13,7 @@ import (
 	"github.com/aws/aws-sdk-go/aws/awserr"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/sqs"
+	"github.com/aws/aws-sdk-go/service/sns"
 )
 
 const AppVersion = "1.1.0"
@@ -126,10 +127,12 @@ func deleteMessages(svc *sqs.SQS, queueUrl *string, messages [] *sqs.Message) {
 }
 
 func main() {
-	var name, server, region string
+	var name, topicARN, SNSProtocol, server, region string
 	var timeout int64
 	var version bool
 	flag.StringVar(&name, "n", "", "Queue name")
+	flag.StringVar(&topicARN, "sns", "", "SNS ARN")
+	flag.StringVar(&SNSProtocol, "p", "sqs", "SNS Protocol")
 	flag.StringVar(&server, "s", "http://localhost:6081", "Server Connection String")
 	flag.StringVar(&region, "r", "us-east-1", "AWS region")
 	flag.Int64Var(&timeout, "t", 20, "(Optional) Timeout in seconds for long polling")
@@ -146,20 +149,36 @@ func main() {
 		exitErrorf("Queue name required")
 	}
 
+	if len(topicARN) == 0 {
+		flag.PrintDefaults()
+		exitErrorf("SNS Topic ARN is required")
+	}
+
 	sess := session.Must(session.NewSessionWithOptions(session.Options{
 		Config: aws.Config{Region: aws.String(region)},
 		SharedConfigState: session.SharedConfigEnable,
 	}))
 
 	// Create a SQS service client.
-	svc := sqs.New(sess)
+	sqsSvc := sqs.New(sess)
 
-	queueUrl := getOrCreateQueue(svc, name)
+	queueUrl := getOrCreateQueue(sqsSvc, name)
+
+	// Create a SNS client from just a session.
+
+	snsClient := sns.New(sess)
+
+	_, err := snsClient.Subscribe(&sns.SubscribeInput{Endpoint: queueUrl, TopicArn: &topicARN, Protocol: &SNSProtocol})
+	
+	if err != nil {
+			flag.PrintDefaults()
+			exitErrorf("Couldn't subscribe to SNS client.")
+	}
 
 	for {
-		messages := recieveMessages(svc, queueUrl, timeout)
+		messages := recieveMessages(sqsSvc, queueUrl, timeout)
 		if(len(messages) > 0) {
-			deleteMessages(svc, queueUrl, messages)
+			deleteMessages(sqsSvc, queueUrl, messages)
 			processMessages(server, messages);
 		}
 	}
