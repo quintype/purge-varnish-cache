@@ -244,7 +244,7 @@ func main() {
 		exitErrorf("Couldn't subscribe to SNS client.", err)
 	}
 
-	go listenForExit(queueUrl, subscription.SubscriptionArn)
+	go listenForExit(sqsSvc, snsClient, queueUrl, subscription.SubscriptionArn)
 
 	for {
 		messages := recieveMessages(sqsSvc, queueUrl, timeout)
@@ -255,11 +255,33 @@ func main() {
 	}
 }
 
-func listenForExit(queueUrl, subscriptionArn *string) {
+func deleteQueue(sqsSvc *sqs.SQS, queueUrl *string){
+	_, err := sqsSvc.DeleteQueue(&sqs.DeleteQueueInput{
+		QueueUrl: queueUrl,
+	})
+
+	if err != nil {
+		fmt.Printf("Could'nt delete queue %s : Error : %v\n", *queueUrl, err);
+	}
+}
+
+func unSubscribe(snsClient *sns.SNS, subscriptionArn *string){
+	_, err := snsClient.Unsubscribe(&sns.UnsubscribeInput{
+		SubscriptionArn: subscriptionArn,
+	})
+
+	if err != nil {
+		fmt.Printf("Could'nt unsubscribe subscriptionArn %s : Error : %v\n", *subscriptionArn, err);
+	}
+}
+
+func listenForExit(sqsSvc *sqs.SQS, snsClient *sns.SNS, queueUrl, subscriptionArn *string) {
 	c := make(chan os.Signal, 1)
 	signal.Notify(c, syscall.SIGINT, syscall.SIGTERM)
 	<- c
-	fmt.Printf("Terminating %s %s\n", *queueUrl, *subscriptionArn);
+	fmt.Printf("Terminating Queue: %s & Subscription: %s\n", *queueUrl, *subscriptionArn);
+	deleteQueue(sqsSvc, queueUrl)
+	unSubscribe(snsClient, subscriptionArn)
 	os.Exit(0)
 }
 
