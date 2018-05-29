@@ -4,7 +4,10 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"os/signal"
 	"strings"
+	"syscall"
+	"time"
 
 	"net/http"
 	"encoding/json"
@@ -35,19 +38,42 @@ func getOrCreateQueue(svc *sqs.SQS, region, name, accountId, topicARN string) (*
 				Resource: name,
 			}
 
-			policy := fmt.Sprintf("{\"Version\":\"2012-10-17\",\"Id\":\"SQSDefaultPolicy\",\"Statement\":[{\"Sid\":\"Sid123123123123\",\"Effect\":\"Allow\",\"Principal\":{\"AWS\":\"*\"},\"Action\":\"SQS:SendMessage\",\"Resource\":\"%s\",\"Condition\":{\"ArnEquals\":{\"aws:SourceArn\":\"%s\"}}}]}",sqsArn, topicARN)
+			policyJson, policyErr := json.Marshal(&map[string]interface{}{
+				"Version": "2012-10-17",
+				"Id": fmt.Sprintf("%s/SQSDefaultPolicy", sqsArn),
+				"Statement": []map[string]interface{}{
+					map[string]interface{}{
+						"Effect": "Allow",
+						"Sid": fmt.Sprintf("Sid%d", time.Now().UnixNano() / int64(time.Millisecond)),
+						"Principal": map[string]string {
+							"AWS": "*",
+						},
+						"Action": "SQS:SendMessage",
+						"Resource": fmt.Sprintf("%s", sqsArn),
+						"Condition": map[string]interface{}{
+							"ArnEquals": map[string]string{
+								"aws:SourceArn": topicARN,
+							},
+						},
+					},
+				},
+			})
+
+			if policyErr != nil {
+				exitErrorf("Could not json serialize", policyErr)
+			}
 
 			_, err := svc.CreateQueue(&sqs.CreateQueueInput{
 				QueueName: aws.String(name),
 				Attributes: map[string]*string{
 					"DelaySeconds":           aws.String("0"),
 					"MessageRetentionPeriod": aws.String("3600"),
-					"Policy":                 aws.String(policy),
+					"Policy":                 aws.String(fmt.Sprintf("%s", policyJson)),
 				},
 			})
 
 			if err != nil {
-				exitErrorf("Unable to create queue %q.", name)
+				exitErrorf("Unable to create queue %q. %v", name, err)
 			}
 
 			return getOrCreateQueue(svc, region, name, accountId, topicARN)
@@ -208,7 +234,7 @@ func main() {
 	snsClient := sns.New(sess)
 	queueArn := getQueueArn(sqsSvc, queueUrl)
 
-	_, err := snsClient.Subscribe(&sns.SubscribeInput{
+	subscription, err := snsClient.Subscribe(&sns.SubscribeInput{
 		Endpoint: queueArn,
 		TopicArn: &topicARN,
 		Protocol: aws.String("sqs"),
@@ -218,6 +244,8 @@ func main() {
 		exitErrorf("Couldn't subscribe to SNS client.", err)
 	}
 
+	go listenForExit(queueUrl, subscription.SubscriptionArn)
+
 	for {
 		messages := recieveMessages(sqsSvc, queueUrl, timeout)
 		if(len(messages) > 0) {
@@ -225,6 +253,14 @@ func main() {
 			processMessages(server, messages);
 		}
 	}
+}
+
+func listenForExit(queueUrl, subscriptionArn *string) {
+	c := make(chan os.Signal, 1)
+	signal.Notify(c, syscall.SIGINT, syscall.SIGTERM)
+	<- c
+	fmt.Printf("Terminating %s %s\n", *queueUrl, *subscriptionArn);
+	os.Exit(0)
 }
 
 func exitErrorf(msg string, args ...interface{}) {
