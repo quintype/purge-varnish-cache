@@ -280,8 +280,8 @@ func listenForExit(sqsSvc *sqs.SQS, snsClient *sns.SNS, queueUrl, subscriptionAr
 	signal.Notify(c, syscall.SIGINT, syscall.SIGTERM)
 	<- c
 	fmt.Printf("Terminating Queue: %s & Subscription: %s\n", *queueUrl, *subscriptionArn);
-	deleteQueue(sqsSvc, queueUrl)
 	unSubscribe(snsClient, subscriptionArn)
+	deleteQueue(sqsSvc, queueUrl)
 	os.Exit(0)
 }
 
